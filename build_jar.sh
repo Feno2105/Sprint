@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Nom du JAR final
-JAR_NAME="FrontController.jar"
+JAR_NAME="FrontController_bis.jar"
 
 # Dossiers source et classes
 SRC_DIR="src/main/java"
