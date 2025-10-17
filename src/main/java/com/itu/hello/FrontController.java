@@ -20,12 +20,11 @@ public class FrontController extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
         String path = req.getPathInfo();
-       
+        if (path == null) path = "/";
         boolean resourceExists = getServletContext().getResource(path) != null;
         if (resourceExists) {
             defaultServe(req, resp);
         } else {
-             if (path == null) path = "/";
             resp.setContentType("text/html;charset=UTF-8");
             resp.getWriter().println("<h1>BIS :: Tu as demandé : " + path + "</h1>");
         }
