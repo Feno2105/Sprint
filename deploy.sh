@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-APP_NAME="framework"
+APP_NAME="framework_bis"
 SRC_DIR="src/main/java"
 LIB_DIR="lib"
 WAR_FILE="${APP_NAME}.war"
