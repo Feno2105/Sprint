@@ -77,7 +77,7 @@ public class FrontController extends HttpServlet {
                     resp.getWriter().println("<p>URL: " + matchingRoute.getUrl() + "</p>");
                     resp.getWriter().println("<p>Classe: " + controllerClass.getSimpleName() + "</p>");
                     resp.getWriter().println("<p>Méthode: " + method.getName() + "</p>");
-                    if (result.getClass().equals(String.class)) {
+                    if (result != null &&result.getClass().equals(String.class)) {
                         resp.getWriter().println("<p>Retour: " + result.toString() + "</p>");
                     }
                     else resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
