@@ -3,164 +3,87 @@ package com.itu.methode;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.itu.annotation.Controller;
 import com.itu.annotation.Url;
 
 public class Scanne {
+    private Set<Route> routes = new HashSet<>();
 
-    public static Map<String,String> isOurs(String lien){
-        Map<String, Object> all = trouverControllers_urls();
-        
-        System.out.println("Classes annotées avec @Controller :");
-        // List<String> controllers = (List<String>) all.get("controllers");
-        @SuppressWarnings("unchecked")
-        Map<String, List<Map<String, String>>> controllerMethods = (Map<String, List<Map<String, String>>>) all.get("controllerMethods");
-        Map<String, String> result  =  new HashMap<>();
-        
-        if (!controllerMethods.isEmpty()) {
-            System.out.println("\n Urls et méthodes trouvés par contrôleur:");
-           
-        for (String controllerName : controllerMethods.keySet()) {
-        System.out.println("Contrôleur: " + controllerName);
-        List<Map<String, String>> methods = controllerMethods.get(controllerName);
-        for (Map<String, String> urlMethod : methods) {
-            if (urlMethod.get("url").equals(lien)) {
-                System.out.println("url => " + urlMethod.get("url") +" lien "+ lien);
-                result.put("controller", controllerName);
-                result.put("methode", urlMethod.get("method"));
-            }
-            System.out.println("  URL: " + urlMethod.get("url") + " -> Méthode: " + urlMethod.get("method"));
-            }
-        }
-    } 
-    else {
-    System.out.println("Aucun lien url trouvé");
-    }
-        return result;
-        
-    } 
-    public static Map<String, Object> trouverControllers_urls() {
-        List<String> nomsControllers = new ArrayList<>();
-        Map<String, List<Map<String, String>>> controllerMethods = new HashMap<>();
-        Map<String, Object> result = new HashMap<>();
-
+    public Set<Route> scanPackage(String basePackage) {
         try {
-            String packageName = "com.itu";
-            String chemin = packageName.replace('.', '/');
-
+            String path = basePackage.replace('.', '/');
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            URL resource = classLoader.getResource(chemin);
-
-            if (resource != null) {
-                System.out.println("scanne du repertoire ");
-                File repertoire = new File(resource.getFile());
-                scannerRepertoire(repertoire, packageName, nomsControllers, controllerMethods);
+            URL resource = classLoader.getResource(path);
+            
+            if (resource == null) {
+                throw new RuntimeException("Package " + basePackage + " not found");
             }
 
+            File directory = new File(resource.getFile());
+            scanDirectory(directory, basePackage);
+            return routes;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException("Error scanning package: " + basePackage, e);
         }
-
-        result.put("controllers", nomsControllers);
-        result.put("controllerMethods", controllerMethods);
-        return result;
     }
 
-    private static void scannerRepertoire(File repertoire, String packageName,
-            List<String> controllers,
-            Map<String, List<Map<String, String>>> controllerMethods) {
-        if (!repertoire.exists() || !repertoire.isDirectory()) {
+    private void scanDirectory(File directory, String packageName) {
+        if (!directory.exists()) {
             return;
         }
 
-        System.out.println(packageName);
-        File[] fichiers = repertoire.listFiles();
-        if (fichiers == null)
-            return;
+        File[] files = directory.listFiles();
+        if (files == null) return;
 
-        for (File fichier : fichiers) {
-            if (fichier.isDirectory()) {
-                String nouveauPackage = packageName.isEmpty() ? fichier.getName()
-                        : packageName + "." + fichier.getName();
-                scannerRepertoire(fichier, nouveauPackage, controllers, controllerMethods);
+        for (File file : files) {
+            if (file.isDirectory()) {
+                scanDirectory(file, packageName + "." + file.getName());
+            } else if (file.getName().endsWith(".class")) {
+                String className = packageName + "." + file.getName().substring(0, file.getName().length() - 6);
+                processClass(className);
+            }
+        }
+    }
 
-            } else if (fichier.getName().endsWith(".class")) {
-                String nomControleur = verifierAnnotationController(fichier, packageName, controllers);
-                if (nomControleur != null) {
-                    List<Map<String, String>> methodesAvecUrl = verifierAnnotationUrl(fichier, packageName);
-                    if (!methodesAvecUrl.isEmpty()) {
-                        controllerMethods.put(nomControleur, methodesAvecUrl);
+    private void processClass(String className) {
+        try {
+            Class<?> clazz = Class.forName(className);
+            Controller controllerAnnotation = clazz.getAnnotation(Controller.class);
+            
+            if (controllerAnnotation != null) {
+                String controllerPath = controllerAnnotation.value();
+                
+                for (Method method : clazz.getDeclaredMethods()) {
+                    Url urlAnnotation = method.getAnnotation(Url.class);
+                    if (urlAnnotation != null) {
+                        String methodPath = urlAnnotation.value();
+                        if (methodPath.equals("none")) continue;
+                        
+                        // Construction de l'URL complète
+                        String fullPath = controllerPath.isEmpty() ? 
+                            methodPath : 
+                            controllerPath + (methodPath.startsWith("/") ? methodPath : "/" + methodPath);
+                        
+                        // Vérification des doublons
+                        Route newRoute = new Route(fullPath, method, clazz);
+                        if (routes.contains(newRoute)) {
+                            throw new RuntimeException("Duplicate route found: " + fullPath);
+                        }
+                        
+                        routes.add(newRoute);
                     }
                 }
             }
-        }
-    }
-
-    private static String verifierAnnotationController(File fichier, String packageName, List<String> controllers) {
-        try {
-            String nomFichier = fichier.getName();
-            String nomClasse = nomFichier.substring(0, nomFichier.length() - 6);
-            String nomCompletClasse = packageName.isEmpty() ? nomClasse : packageName + "." + nomClasse;
-
-            Class<?> classe = Class.forName(nomCompletClasse);
-
-            if (classe.isAnnotationPresent(Controller.class)) {
-                controllers.add(nomCompletClasse);
-
-                Controller annotation = classe.getAnnotation(Controller.class);
-                String valeur = annotation.value();
-                if (!valeur.isEmpty()) {
-                    System.out.println("Valeur de l'annotation : " + valeur);
-                }
-                return nomCompletClasse;
-            }
-
         } catch (ClassNotFoundException e) {
-            System.err.println("Classe non trouvée : " + e.getMessage());
-        } catch (Exception e) {
-            System.err.println("Erreur lors du chargement de la classe cccc : " + e.getMessage());
+            throw new RuntimeException("Error processing class: " + className, e);
         }
-        return null;
     }
 
-    private static List<Map<String, String>> verifierAnnotationUrl(File fichier, String packageName) {
-        List<Map<String, String>> methodesAvecUrl = new ArrayList<>();
-
-        try {
-            String nomFichier = fichier.getName();
-            String nomClasse = nomFichier.substring(0, nomFichier.length() - 6);
-            System.out.println("nom de classe: " + nomClasse);
-
-            String nomCompletClasse = packageName.isEmpty() ? nomClasse : packageName + "." + nomClasse;
-
-            Class<?> classe = Class.forName(nomCompletClasse);
-            Method[] methodes = classe.getDeclaredMethods();
-
-            for (Method method : methodes) {
-                if (method.isAnnotationPresent(Url.class)) {
-                    Map<String, String> urlInfo = new HashMap<>();
-                    Url annotation = method.getAnnotation(Url.class);
-                    String valeur = annotation.value();
-
-                    urlInfo.put("url", valeur);
-                    urlInfo.put("method", method.getName());
-                    methodesAvecUrl.add(urlInfo);
-
-                    System.out.println("Valeur de l'annotation : " + valeur + " la methode est " + method.getName());
-                }
-            }
-
-        } catch (ClassNotFoundException e) {
-            System.err.println("Classe non trouvée : " + e.getMessage());
-        } catch (Exception e) {
-            System.err.println("Erreur lors du chargement de la classe xxxx : " + e.getMessage());
-        }
-
-        return methodesAvecUrl;
-    }
+    public Set<Route> getRoutes() {
+        return routes;
+    }    
 }
+
