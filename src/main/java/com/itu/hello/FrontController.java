@@ -49,13 +49,46 @@ public class FrontController extends HttpServlet {
                 .orElse(null);
             
             if (matchingRoute != null) {
-                // Route trouvée, afficher les détails
-                resp.setContentType("text/html;charset=UTF-8");
-                resp.getWriter().println("<h2>Route trouvée :</h2>");
-                resp.getWriter().println("<p>URL: " + matchingRoute.getUrl() + "</p>");
-                resp.getWriter().println("<p>Classe: " + matchingRoute.getController().getSimpleName() + "</p>");
-                resp.getWriter().println("<p>Méthode: " + matchingRoute.getMethod().getName() + "</p>");
-                return;
+                // Route trouvée : instancier le controller et invoquer la méthode
+                try {
+                    Class<?> controllerClass = matchingRoute.getController();
+                    Object controllerInstance = controllerClass.getDeclaredConstructor().newInstance();
+                    java.lang.reflect.Method method = matchingRoute.getMethod();
+
+                    // Préparer les arguments : on injecte HttpServletRequest et HttpServletResponse si présents
+                    Class<?>[] paramTypes = method.getParameterTypes();
+                    Object[] args = new Object[paramTypes.length];
+                    if (paramTypes.length > 0) {
+                        // for (int i = 0; i < paramTypes.length; i++) {
+                        //     if (paramTypes[i].isAssignableFrom(HttpServletRequest.class)) {
+                        //         args[i] = req;
+                        //     } else if (paramTypes[i].isAssignableFrom(HttpServletResponse.class)) {
+                        //         args[i] = resp;
+                        //     } else {
+                        //         // Paramètre non supporté : on met null (ou on pourrait lever une erreur)
+                        //         args[i] = null;
+                        //     }
+                        // }
+                    }
+
+                    Object result = method.invoke(controllerInstance, args);
+                    resp.setContentType("text/html;charset=UTF-8");
+                    resp.getWriter().println("<h2>Route exécutée :</h2>");
+                    resp.getWriter().println("<p>URL: " + matchingRoute.getUrl() + "</p>");
+                    resp.getWriter().println("<p>Classe: " + controllerClass.getSimpleName() + "</p>");
+                    resp.getWriter().println("<p>Méthode: " + method.getName() + "</p>");
+                    if (result.getClass().equals(String.class)) {
+                        resp.getWriter().println("<p>Retour: " + result.toString() + "</p>");
+                    }
+                    else resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
+                    return;
+                } catch (Exception e) {
+                    resp.setContentType("text/html;charset=UTF-8");
+                    resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    resp.getWriter().println("<h1>Erreur lors de l'exécution de la route</h1>");
+                    e.printStackTrace(resp.getWriter());
+                    return;
+                }
             }
         }
         
