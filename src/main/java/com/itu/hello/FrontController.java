@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 import com.itu.methode.Scanne;
+import com.itu.classe.ModelView;
 import com.itu.methode.Route;
 
 @WebServlet("/*")
@@ -58,17 +59,14 @@ public class FrontController extends HttpServlet {
                     // Préparer les arguments : on injecte HttpServletRequest et HttpServletResponse si présents
                     Class<?>[] paramTypes = method.getParameterTypes();
                     Object[] args = new Object[paramTypes.length];
-                    if (paramTypes.length > 0) {
-                        // for (int i = 0; i < paramTypes.length; i++) {
-                        //     if (paramTypes[i].isAssignableFrom(HttpServletRequest.class)) {
-                        //         args[i] = req;
-                        //     } else if (paramTypes[i].isAssignableFrom(HttpServletResponse.class)) {
-                        //         args[i] = resp;
-                        //     } else {
-                        //         // Paramètre non supporté : on met null (ou on pourrait lever une erreur)
-                        //         args[i] = null;
-                        //     }
-                        // }
+                    for (int i = 0; i < paramTypes.length; i++) {
+                        if (HttpServletRequest.class.isAssignableFrom(paramTypes[i])) {
+                            args[i] = req;
+                        } else if (HttpServletResponse.class.isAssignableFrom(paramTypes[i])) {
+                            args[i] = resp;
+                        } else {
+                            args[i] = null; // unsupported parameter for now
+                        }
                     }
 
                     Object result = method.invoke(controllerInstance, args);
@@ -79,6 +77,15 @@ public class FrontController extends HttpServlet {
                     resp.getWriter().println("<p>Méthode: " + method.getName() + "</p>");
                     if (result != null &&result.getClass().equals(String.class)) {
                         resp.getWriter().println("<p>Retour: " + result.toString() + "</p>");
+                    }
+                    else if (result != null && result.getClass().equals(ModelView.class)) {
+                        ModelView mv = (ModelView) result;
+                        String viewName = mv.getView();
+                        // Construire le chemin de la vue. Ne pas préfixer par contextPath ici : RequestDispatcher attend un chemin relatif au contexte
+                        String viewPath = (viewName.startsWith("/")) ? viewName : ("/views/" + viewName);
+                        // Forward vers la vue
+                        //resp.getWriter().println("<p>Forwarding to view: " +  req.getContextPath() + viewPath + "</p>");
+                        req.getRequestDispatcher(viewPath).forward(req, resp);
                     }
                     else resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
                     return;
