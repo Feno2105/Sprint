@@ -46,7 +46,7 @@ public class FrontController extends HttpServlet {
         @SuppressWarnings("unchecked")
         Set<Route> routes = (Set<Route>) getServletContext().getAttribute(ROUTES_ATTRIBUTE);
 
-        if (routes != null) {
+        if (routes != null && !routes.isEmpty()) {
             // Chercher la route correspondante
             Route matchingRoute = routes.stream()
                     .filter(route -> route.getUrlPattern().matcher(path).matches())
@@ -81,23 +81,19 @@ public class FrontController extends HttpServlet {
                             extracted.put(matchingRoute.getUrlParams().get(i), rawValue);
                         }
                     Object result = method.invoke(controllerInstance, args);
-                    resp.setContentType("text/html;charset=UTF-8");
-                    resp.getWriter().println("<h2>Route exécutée :</h2>");
-                    resp.getWriter().println("<p>URL: " + matchingRoute.getUrl() + "</p>");
-                    resp.getWriter().println("<p>Classe: " + controllerClass.getSimpleName() + "</p>");
-                    resp.getWriter().println("<p>Méthode: " + method.getName() + "</p>");
-                    resp.getWriter().println("<p>valeur et  Paramètres url : " + extracted + "</p>");
+                   
                     if (result != null && result.getClass().equals(String.class)) {
+                        resp.setContentType("text/html;charset=UTF-8");
+                        resp.getWriter().println("<h2>Route exécutée :</h2>");
+                        resp.getWriter().println("<p>URL: " + matchingRoute.getUrl() + "</p>");
+                        resp.getWriter().println("<p>Classe: " + controllerClass.getSimpleName() + "</p>");
+                        resp.getWriter().println("<p>Méthode: " + method.getName() + "</p>");
+                        resp.getWriter().println("<p>valeur et  Paramètres url : " + extracted + "</p>");
                         resp.getWriter().println("<p>Retour: " + result.toString() + "</p>");
                     } else if (result != null && result.getClass().equals(ModelView.class)) {
                         ModelView mv = (ModelView) result;
                         String viewName = mv.getView();
-                        // Construire le chemin de la vue. Ne pas préfixer par contextPath ici :
-                        // RequestDispatcher attend un chemin relatif au contexte
                         String viewPath = (viewName.startsWith("/")) ? viewName : ("/views/" + viewName);
-                        // Forward vers la vue
-                        // resp.getWriter().println("<p>Forwarding to view: " + req.getContextPath() +
-                        // viewPath + "</p>");
                         req.getRequestDispatcher(viewPath).forward(req, resp);
                     } else
                         resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
@@ -110,18 +106,24 @@ public class FrontController extends HttpServlet {
                     return;
                 }
             }
+            else {
+                resp.setContentType("text/html;charset=UTF-8");
+                resp.getWriter().println("<p>Aucune route trouvée, servir les ressources statiques</p>");
+                defaultServe(req, resp);
+                return;
+            }
         }
 
-        // Vérifier si c'est une ressource statique
-        boolean resourceExists = getServletContext().getResource(path) != null;
-        if (resourceExists) {
-            defaultServe(req, resp);
-        } else {
-            // Route non trouvée
-            resp.setContentType("text/html;charset=UTF-8");
-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            resp.getWriter().println("<h1>Aucun url de ce type n'a été trouvé 404 not found by the server</h1>");
-        }
+        // // Vérifier si c'est une ressource statique
+        // boolean resourceExists = getServletContext().getResource(path) != null;
+        // if (resourceExists) {
+        //     defaultServe(req, resp);
+        // } else {
+        //     // Route non trouvée
+        //     resp.setContentType("text/html;charset=UTF-8");
+        //     resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        //     resp.getWriter().println("<h1>Aucun url de ce type n'a été trouvé 404 not found by the server</h1>");
+        // }
     }
 
     private void defaultServe(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
