@@ -5,6 +5,7 @@ set -euo pipefail
 JAR_NAME="Framework.jar"
 
 # Dossiers source et classes
+TOMCAT_LIB_DIR="/home/fenohasina/Documents/apache-tomcat-10.1.28/webapps/test/WEB-INF/lib"
 SRC_DIR="src/main/java"
 BUILD_DIR="build/classes"
 LIB_DIR="lib"
@@ -34,4 +35,14 @@ jar -cvf "../../$JAR_NAME" . > /dev/null
 cd ../..
 
 echo "$JAR_NAME généré avec succès ✅"
+
+# Copie du JAR vers Tomcat
+if [ -d "$TOMCAT_LIB_DIR" ]; then
+    cp "$JAR_NAME" "$TOMCAT_LIB_DIR/"
+    echo "✅ $JAR_NAME copié avec succès vers $TOMCAT_LIB_DIR"
+else
+    echo "⚠️  Dossier Tomcat non trouvé : $TOMCAT_LIB_DIR"
+    echo "Tu peux manuellement copier $JAR_NAME vers ce dossier"
+fi
+
 echo "Tu peux maintenant le mettre dans WEB-INF/lib/ de ton domaine de test"
