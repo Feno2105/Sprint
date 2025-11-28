@@ -16,7 +16,7 @@ import com.itu.methode.Scanne;
 import com.itu.classe.ModelView;
 import com.itu.methode.Route;
 
-@WebServlet("/servlet/*")
+@WebServlet("/app/*")
 public class FrontController extends HttpServlet {
     private static final String ROUTES_ATTRIBUTE = "routes";
 
