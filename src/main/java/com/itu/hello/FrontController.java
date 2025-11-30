@@ -79,9 +79,6 @@ public class FrontController extends HttpServlet {
                             if (extracted.containsKey(argName)) {
                                 args[i] = convertToType(extracted.get(argName), parameters[i].getType());
                             } 
-                            else if (req.getParameter(argName) != null) {
-                                args[i] = convertToType(req.getParameter(argName),parameters[i].getType());
-                            }
                             else {
                                 args[i] = getDefaultValue(parameters[i].getType());
                             }
