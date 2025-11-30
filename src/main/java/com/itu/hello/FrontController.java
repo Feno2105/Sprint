@@ -67,7 +67,7 @@ public class FrontController extends HttpServlet {
                     Object[] args = new Object[parameters.length];
 
                     Map<String, String> extracted = matchingRoute.extractParameters(fullUrl);
-
+                    
                     // Initialiser tous les arguments avec des valeurs par défaut
                     for (int i = 0; i < parameters.length; i++) {
                         if (HttpServletRequest.class.isAssignableFrom(parameters[i].getType())) {
@@ -78,7 +78,11 @@ public class FrontController extends HttpServlet {
                             String argName = parameters[i].getName();
                             if (extracted.containsKey(argName)) {
                                 args[i] = convertToType(extracted.get(argName), parameters[i].getType());
-                            } else {
+                            } 
+                            else if (req.getParameter(argName) != null) {
+                                args[i] = convertToType(req.getParameter(argName),parameters[i].getType());
+                            }
+                            else {
                                 args[i] = getDefaultValue(parameters[i].getType());
                             }
                         }
@@ -102,7 +106,6 @@ public class FrontController extends HttpServlet {
                             // + "</p>");
                             req.setAttribute(key, extracted.get(key));
                         }
-
                         ModelView mv = (ModelView) result;
                         Map<String, Object> data = mv.getData();
                         for (String key : data.keySet()) {
@@ -111,7 +114,8 @@ public class FrontController extends HttpServlet {
                         String viewName = mv.getView();
                         String viewPath = ("/WEB-INF/views/" + viewName);
                         req.getRequestDispatcher(viewPath).forward(req, resp);
-                    } else
+                    } 
+                    else
                         resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
                     return;
                 } catch (Exception e) {
