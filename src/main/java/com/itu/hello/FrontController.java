@@ -16,6 +16,7 @@ import java.util.regex.Matcher;
 import com.itu.methode.Scanne;
 import com.itu.classe.ModelView;
 import com.itu.methode.Route;
+import com.itu.annotation.HttpMethod;
 
 @WebServlet("/app/*")
 public class FrontController extends HttpServlet {
@@ -40,8 +41,19 @@ public class FrontController extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
+        doPrepare(req, resp, "GET");
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
+        doPrepare(req, resp, "POST");
+    }
+
+    protected void doPrepare(HttpServletRequest req, HttpServletResponse resp, String httpMethod)
+            throws IOException, ServletException {
         String path = req.getPathInfo() != null ? req.getPathInfo() : "/";
         String fullUrl = path + (req.getQueryString() != null ? "?" + req.getQueryString() : "");
+        req.setAttribute("httpMethod", httpMethod);
         // Récupérer les routes du ServletContext
         @SuppressWarnings("unchecked")
         Set<Route> routes = (Set<Route>) getServletContext().getAttribute(ROUTES_ATTRIBUTE);
@@ -53,7 +65,8 @@ public class FrontController extends HttpServlet {
         if (routes != null && !routes.isEmpty()) {
             // Chercher la route correspondante
             Route matchingRoute = routes.stream()
-                    .filter(route -> route.getUrlPattern().matcher(fullUrl).matches())
+                    .filter(route -> route.getUrlPattern().matcher(fullUrl).matches() 
+                            && route.getHttpMethod().name().equals(httpMethod))
                     .findFirst()
                     .orElse(null);
 
@@ -132,6 +145,7 @@ public class FrontController extends HttpServlet {
             }
         }
     }
+    
 
     private void defaultServe(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         defaultDispatcher.forward(req, res);
