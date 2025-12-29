@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.itu.annotation.Controller;
+import com.itu.annotation.HttpMethod;
 import com.itu.annotation.Url;
 
 public class Scanne {
@@ -62,15 +63,17 @@ public class Scanne {
                         String methodPath = urlAnnotation.value();
                         if (methodPath.equals("none")) continue;
                         
+                        HttpMethod httpMethod = urlAnnotation.method();
+                        
                         // Construction de l'URL complète
                         String fullPath = controllerPath.isEmpty() ? 
                             methodPath : 
                             controllerPath + (methodPath.startsWith("/") ? methodPath : "/" + methodPath);
                         
                         // Vérification des doublons
-                        Route newRoute = new Route(fullPath, method, clazz);
+                        Route newRoute = new Route(fullPath, method, clazz, httpMethod);
                         if (routes.contains(newRoute)) {
-                            throw new RuntimeException("Duplicate route found: " + fullPath);
+                            throw new RuntimeException("Duplicate route found: " + httpMethod + " " + fullPath);
                         }
                         
                         routes.add(newRoute);

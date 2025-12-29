@@ -8,16 +8,20 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.itu.annotation.HttpMethod;
+
 public class Route {
     private String url;
     private Method method;
     private Class<?> controller;
     private Pattern urlPattern;
+    private HttpMethod httpMethod;
 
-    public Route(String url, Method method, Class<?> controller) {
+    public Route(String url, Method method, Class<?> controller, HttpMethod httpMethod) {
         this.url = url;
         this.method = method;
         this.controller = controller;
+        this.httpMethod = httpMethod;
         this.prepareRegex();
     }
 
@@ -26,17 +30,25 @@ public class Route {
     public Method getMethod() { return method; }
     public Class<?> getController() { return controller; }
     public Pattern getUrlPattern() { return urlPattern; }
+    public HttpMethod getHttpMethod() { return httpMethod; }
 
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof Route)) return false;
         Route other = (Route) obj;
-        return this.url.equals(other.url);
+        return this.url.equals(other.url) && this.httpMethod == other.httpMethod;
     }
 
     @Override
     public int hashCode() {
-        return url.hashCode();
+        return url.hashCode() + httpMethod.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        String methodPart = (httpMethod != null) ? httpMethod.name() + " " : "";
+        String controllerPart = (controller != null) ? (" -> " + controller.getSimpleName() + "#" + method.getName()) : "";
+        return methodPart + url + controllerPart;
     }
 
     public void prepareRegex() {

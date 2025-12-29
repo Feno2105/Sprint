@@ -6,4 +6,5 @@ import java.lang.annotation.*;
 @Target(ElementType.METHOD)  // ← Seulement METHOD
 public @interface Url {
     String value() default "none";
+    HttpMethod method() default HttpMethod.GET;
 }
