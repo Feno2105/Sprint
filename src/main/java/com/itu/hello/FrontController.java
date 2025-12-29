@@ -87,6 +87,30 @@ public class FrontController extends HttpServlet {
                             args[i] = req;
                         } else if (HttpServletResponse.class.isAssignableFrom(parameters[i].getType())) {
                             args[i] = resp;
+                        } else if (Map.class.isAssignableFrom(parameters[i].getType())) {
+                            // Si le paramètre est un Map, le remplir avec tous les paramètres
+                            Map<String, Object> paramMap = new HashMap<>();
+                            
+                            // Ajouter les paramètres extraits de l'URL
+                            for (String key : extracted.keySet()) {
+                                paramMap.put(key, extracted.get(key));
+                            }
+                            
+                            // Ajouter tous les paramètres de la requête (formulaire, query string)
+                            Map<String, String[]> requestParams = req.getParameterMap();
+                            for (String key : requestParams.keySet()) {
+                                String[] values = requestParams.get(key);
+                                if (values.length == 1) {
+                                    paramMap.put(key, values[0]);
+                                } else {
+                                    paramMap.put(key, values);
+                                }
+                            }
+                            
+                            args[i] = paramMap;
+                        } else if (isCustomObject(parameters[i].getType())) {
+                            // Si c'est un objet custom, l'instancier et le remplir
+                            args[i] = fillCustomObject(parameters[i].getType(), req);
                         } else {
                             String argName = parameters[i].getName();
                             if (extracted.containsKey(argName)) {
@@ -195,6 +219,62 @@ public class FrontController extends HttpServlet {
                 return (short) 0;
             if (targetType == char.class)
                 return '\0';
+        }
+        return null;
+    }
+
+    private boolean isCustomObject(Class<?> type) {
+        // Vérifier si c'est un objet custom (ni primitif, ni wrapper, ni String, ni Map, ni Request/Response)
+        return !type.isPrimitive() 
+            && !type.equals(String.class)
+            && !type.equals(Integer.class)
+            && !type.equals(Long.class)
+            && !type.equals(Double.class)
+            && !type.equals(Boolean.class)
+            && !type.equals(Float.class)
+            && !Map.class.isAssignableFrom(type)
+            && !HttpServletRequest.class.isAssignableFrom(type)
+            && !HttpServletResponse.class.isAssignableFrom(type);
+    }
+
+    private Object fillCustomObject(Class<?> type, HttpServletRequest req) throws Exception {
+        // Créer une instance de l'objet
+        Object instance = type.getDeclaredConstructor().newInstance();
+        
+        // Récupérer tous les paramètres de la requête
+        Map<String, String[]> requestParams = req.getParameterMap();
+        
+        // Pour chaque paramètre, chercher un setter correspondant
+        for (String paramName : requestParams.keySet()) {
+            String[] values = requestParams.get(paramName);
+            if (values != null && values.length > 0) {
+                String value = values[0];
+                
+                // Construire le nom du setter (ex: nom -> setNom)
+                String setterName = "set" + paramName.substring(0, 1).toUpperCase() + paramName.substring(1);
+                
+                try {
+                    // Chercher le setter avec différents types de paramètres
+                    java.lang.reflect.Method setter = findSetter(type, setterName);
+                    if (setter != null) {
+                        Class<?> paramType = setter.getParameterTypes()[0];
+                        Object convertedValue = convertToType(value, paramType);
+                        setter.invoke(instance, convertedValue);
+                    }
+                } catch (Exception e) {
+                    // Ignorer si le setter n'existe pas ou échoue
+                }
+            }
+        }
+        
+        return instance;
+    }
+
+    private java.lang.reflect.Method findSetter(Class<?> type, String setterName) {
+        for (java.lang.reflect.Method method : type.getMethods()) {
+            if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
+                return method;
+            }
         }
         return null;
     }
