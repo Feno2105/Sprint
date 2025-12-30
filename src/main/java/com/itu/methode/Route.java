@@ -31,6 +31,10 @@ public class Route {
     public Class<?> getController() { return controller; }
     public Pattern getUrlPattern() { return urlPattern; }
     public HttpMethod getHttpMethod() { return httpMethod; }
+    
+    public boolean isJson() {
+        return method.isAnnotationPresent(com.itu.annotation.Json.class);
+    }
 
     @Override
     public boolean equals(Object obj) {
@@ -48,7 +52,8 @@ public class Route {
     public String toString() {
         String methodPart = (httpMethod != null) ? httpMethod.name() + " " : "";
         String controllerPart = (controller != null) ? (" -> " + controller.getSimpleName() + "#" + method.getName()) : "";
-        return methodPart + url + controllerPart;
+        String jsonPart = isJson() ? " [@Json]" : "";
+        return methodPart + url + controllerPart + jsonPart;
     }
 
     public void prepareRegex() {

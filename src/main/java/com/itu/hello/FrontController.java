@@ -17,6 +17,8 @@ import com.itu.methode.Scanne;
 import com.itu.classe.ModelView;
 import com.itu.methode.Route;
 import com.itu.annotation.HttpMethod;
+import com.itu.annotation.Json;
+import com.google.gson.Gson;
 
 @WebServlet("/app/*")
 public class FrontController extends HttpServlet {
@@ -87,6 +89,30 @@ public class FrontController extends HttpServlet {
                             args[i] = req;
                         } else if (HttpServletResponse.class.isAssignableFrom(parameters[i].getType())) {
                             args[i] = resp;
+                        } else if (Map.class.isAssignableFrom(parameters[i].getType())) {
+                            // Si le paramètre est un Map, le remplir avec tous les paramètres
+                            Map<String, Object> paramMap = new HashMap<>();
+                            
+                            // Ajouter les paramètres extraits de l'URL
+                            for (String key : extracted.keySet()) {
+                                paramMap.put(key, extracted.get(key));
+                            }
+                            
+                            // Ajouter tous les paramètres de la requête (formulaire, query string)
+                            Map<String, String[]> requestParams = req.getParameterMap();
+                            for (String key : requestParams.keySet()) {
+                                String[] values = requestParams.get(key);
+                                if (values.length == 1) {
+                                    paramMap.put(key, values[0]);
+                                } else {
+                                    paramMap.put(key, values);
+                                }
+                            }
+                            
+                            args[i] = paramMap;
+                        } else if (isCustomObject(parameters[i].getType())) {
+                            // Si c'est un objet custom, l'instancier et le remplir
+                            args[i] = fillCustomObject(parameters[i].getType(), req);
                         } else {
                             String argName = parameters[i].getName();
                             if (extracted.containsKey(argName)) {
@@ -100,6 +126,9 @@ public class FrontController extends HttpServlet {
 
                     Object result = method.invoke(controllerInstance, args);
 
+                    // Vérifier si la méthode est annotée avec @Json
+                    
+                    
                     if (result != null && result.getClass().equals(String.class)) {
                         resp.setContentType("text/html;charset=UTF-8");
                         resp.getWriter().println("<h2>Route exécutée :</h2>");
@@ -110,7 +139,7 @@ public class FrontController extends HttpServlet {
                         resp.getWriter().println("<p>Retour: " + result.toString() + "</p>");
                     }
 
-                    else if (result != null && result.getClass().equals(ModelView.class)) {
+                    else if (result != null && result.getClass().equals(ModelView.class) && !method.isAnnotationPresent(Json.class)) {
                         for (String key : extracted.keySet()) {
                             // resp.getWriter().println("<p>Param URL: " + key + " = " + extracted.get(key)
                             // + "</p>");
@@ -125,6 +154,23 @@ public class FrontController extends HttpServlet {
                         String viewPath = ("/WEB-INF/views/" + viewName);
                         req.getRequestDispatcher(viewPath).forward(req, resp);
                     } 
+                    else if (method.isAnnotationPresent(Json.class)) {
+                        resp.setContentType("application/json;charset=UTF-8");
+                        Gson gson = new Gson();
+                        Object jsonData = result;
+                        
+                        // Si le résultat est un ModelView, extraire seulement les données
+                        if (result != null && result instanceof ModelView) {
+                            ModelView mv = (ModelView) result;
+                            jsonData = mv.getData();
+                            System.out.println("DEBUG: Extraction des données du ModelView: " + jsonData);
+                        }
+                        
+                        String json = gson.toJson(jsonData);
+                        System.out.println("DEBUG: JSON généré: " + json);
+                        resp.getWriter().write(json);
+                        return;
+                    }
                     else
                         resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
                     return;
@@ -195,6 +241,62 @@ public class FrontController extends HttpServlet {
                 return (short) 0;
             if (targetType == char.class)
                 return '\0';
+        }
+        return null;
+    }
+
+    private boolean isCustomObject(Class<?> type) {
+        // Vérifier si c'est un objet custom (ni primitif, ni wrapper, ni String, ni Map, ni Request/Response)
+        return !type.isPrimitive() 
+            && !type.equals(String.class)
+            && !type.equals(Integer.class)
+            && !type.equals(Long.class)
+            && !type.equals(Double.class)
+            && !type.equals(Boolean.class)
+            && !type.equals(Float.class)
+            && !Map.class.isAssignableFrom(type)
+            && !HttpServletRequest.class.isAssignableFrom(type)
+            && !HttpServletResponse.class.isAssignableFrom(type);
+    }
+
+    private Object fillCustomObject(Class<?> type, HttpServletRequest req) throws Exception {
+        // Créer une instance de l'objet
+        Object instance = type.getDeclaredConstructor().newInstance();
+        
+        // Récupérer tous les paramètres de la requête
+        Map<String, String[]> requestParams = req.getParameterMap();
+        
+        // Pour chaque paramètre, chercher un setter correspondant
+        for (String paramName : requestParams.keySet()) {
+            String[] values = requestParams.get(paramName);
+            if (values != null && values.length > 0) {
+                String value = values[0];
+                
+                // Construire le nom du setter (ex: nom -> setNom)
+                String setterName = "set" + paramName.substring(0, 1).toUpperCase() + paramName.substring(1);
+                
+                try {
+                    // Chercher le setter avec différents types de paramètres
+                    java.lang.reflect.Method setter = findSetter(type, setterName);
+                    if (setter != null) {
+                        Class<?> paramType = setter.getParameterTypes()[0];
+                        Object convertedValue = convertToType(value, paramType);
+                        setter.invoke(instance, convertedValue);
+                    }
+                } catch (Exception e) {
+                    // Ignorer si le setter n'existe pas ou échoue
+                }
+            }
+        }
+        
+        return instance;
+    }
+
+    private java.lang.reflect.Method findSetter(Class<?> type, String setterName) {
+        for (java.lang.reflect.Method method : type.getMethods()) {
+            if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
+                return method;
+            }
         }
         return null;
     }
