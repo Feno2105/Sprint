@@ -16,7 +16,7 @@ mkdir -p "$BUILD_DIR"
 
 # Vérifie que jakarta.servlet-api.jar est présent dans lib/
 
-CP="$LIB_DIR/jakarta.servlet-api-5.0.0.jar"
+CP="$LIB_DIR/jakarta.servlet-api-5.0.0.jar:$LIB_DIR/gson-2.9.0.jar"
 
 # Compilation de tous les fichiers .java récursivement
 echo "Compilation des sources..."

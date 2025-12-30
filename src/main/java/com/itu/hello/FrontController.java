@@ -17,6 +17,8 @@ import com.itu.methode.Scanne;
 import com.itu.classe.ModelView;
 import com.itu.methode.Route;
 import com.itu.annotation.HttpMethod;
+import com.itu.annotation.Json;
+import com.google.gson.Gson;
 
 @WebServlet("/app/*")
 public class FrontController extends HttpServlet {
@@ -124,6 +126,9 @@ public class FrontController extends HttpServlet {
 
                     Object result = method.invoke(controllerInstance, args);
 
+                    // Vérifier si la méthode est annotée avec @Json
+                    
+                    
                     if (result != null && result.getClass().equals(String.class)) {
                         resp.setContentType("text/html;charset=UTF-8");
                         resp.getWriter().println("<h2>Route exécutée :</h2>");
@@ -134,7 +139,7 @@ public class FrontController extends HttpServlet {
                         resp.getWriter().println("<p>Retour: " + result.toString() + "</p>");
                     }
 
-                    else if (result != null && result.getClass().equals(ModelView.class)) {
+                    else if (result != null && result.getClass().equals(ModelView.class) && !method.isAnnotationPresent(Json.class)) {
                         for (String key : extracted.keySet()) {
                             // resp.getWriter().println("<p>Param URL: " + key + " = " + extracted.get(key)
                             // + "</p>");
@@ -149,6 +154,23 @@ public class FrontController extends HttpServlet {
                         String viewPath = ("/WEB-INF/views/" + viewName);
                         req.getRequestDispatcher(viewPath).forward(req, resp);
                     } 
+                    else if (method.isAnnotationPresent(Json.class)) {
+                        resp.setContentType("application/json;charset=UTF-8");
+                        Gson gson = new Gson();
+                        Object jsonData = result;
+                        
+                        // Si le résultat est un ModelView, extraire seulement les données
+                        if (result != null && result instanceof ModelView) {
+                            ModelView mv = (ModelView) result;
+                            jsonData = mv.getData();
+                            System.out.println("DEBUG: Extraction des données du ModelView: " + jsonData);
+                        }
+                        
+                        String json = gson.toJson(jsonData);
+                        System.out.println("DEBUG: JSON généré: " + json);
+                        resp.getWriter().write(json);
+                        return;
+                    }
                     else
                         resp.getWriter().println("<p>Le retour n'est pas une chaîne de caractères</p>");
                     return;
