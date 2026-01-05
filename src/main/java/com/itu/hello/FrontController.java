@@ -3,10 +3,17 @@ package com.itu.hello;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Part;
 import java.io.IOException;
+import java.io.File;
+import java.io.InputStream;
+import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.lang.reflect.Parameter;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +28,11 @@ import com.itu.annotation.Json;
 import com.google.gson.Gson;
 
 @WebServlet("/app/*")
+@MultipartConfig(
+    fileSizeThreshold = 1024 * 1024 * 2,  // 2MB
+    maxFileSize = 1024 * 1024 * 10,       // 10MB
+    maxRequestSize = 1024 * 1024 * 50     // 50MB
+)
 public class FrontController extends HttpServlet {
     private static final String ROUTES_ATTRIBUTE = "routes";
 
@@ -83,6 +95,54 @@ public class FrontController extends HttpServlet {
 
                     Map<String, String> extracted = matchingRoute.extractParameters(fullUrl);
                     
+                    // Gérer les fichiers uploadés si la requête est multipart
+                    File uploadedFile = null;
+                    if (req.getContentType() != null && req.getContentType().startsWith("multipart/form-data")) {
+                        try {
+                            Part filePart = req.getPart("file");
+                            if (filePart != null && filePart.getSubmittedFileName() != null && !filePart.getSubmittedFileName().isEmpty()) {
+                                String fileName = filePart.getSubmittedFileName();
+                                
+                                // Créer un répertoire temporaire s'il n'existe pas
+                                File tempDir = new File(System.getProperty("java.io.tmpdir"), "uploads");
+                                if (!tempDir.exists()) {
+                                    tempDir.mkdirs();
+                                }
+                                
+                                // Créer un fichier temporaire avec un nom unique
+                                uploadedFile = new File(tempDir, System.currentTimeMillis() + "_" + fileName);
+                                
+                                // Lire et écrire le fichier manuellement
+                                try (InputStream input = filePart.getInputStream();
+                                     FileOutputStream output = new FileOutputStream(uploadedFile)) {
+                                    
+                                    byte[] buffer = new byte[8192];
+                                    int bytesRead;
+                                    long totalBytesRead = 0;
+                                    
+                                    while ((bytesRead = input.read(buffer)) != -1) {
+                                        output.write(buffer, 0, bytesRead);
+                                        totalBytesRead += bytesRead;
+                                    }
+                                    
+                                    output.flush();
+                                }
+                                
+                                // Vérifier que le fichier a bien été écrit
+                                if (uploadedFile.exists() && uploadedFile.length() > 0) {
+                                    uploadedFile.deleteOnExit();
+                                } else {
+                                    if (uploadedFile.exists()) {
+                                        uploadedFile.delete();
+                                    }
+                                    uploadedFile = null;
+                                }
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    
                     // Initialiser tous les arguments avec des valeurs par défaut
                     for (int i = 0; i < parameters.length; i++) {
                         if (HttpServletRequest.class.isAssignableFrom(parameters[i].getType())) {
@@ -110,6 +170,9 @@ public class FrontController extends HttpServlet {
                             }
                             
                             args[i] = paramMap;
+                        } else if (File.class.isAssignableFrom(parameters[i].getType())) {
+                            // Si le paramètre est un File, utiliser le fichier uploadé
+                            args[i] = uploadedFile;
                         } else if (isCustomObject(parameters[i].getType())) {
                             // Si c'est un objet custom, l'instancier et le remplir
                             args[i] = fillCustomObject(parameters[i].getType(), req);
@@ -299,5 +362,16 @@ public class FrontController extends HttpServlet {
             }
         }
         return null;
+    }
+
+    private String getFileName(Part part) {
+        String contentDisposition = part.getHeader("content-disposition");
+        String[] tokens = contentDisposition.split(";");
+        for (String token : tokens) {
+            if (token.trim().startsWith("filename")) {
+                return token.substring(token.indexOf("=") + 2, token.length() - 1);
+            }
+        }
+        return "unknown";
     }
 }
