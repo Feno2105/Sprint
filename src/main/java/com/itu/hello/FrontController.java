@@ -23,9 +23,12 @@ import java.util.regex.Matcher;
 import com.itu.methode.Scanne;
 import com.itu.classe.ModelView;
 import com.itu.methode.Route;
+import com.itu.annotation.Authorized;
 import com.itu.annotation.HttpMethod;
 import com.itu.annotation.Json;
 import com.itu.annotation.MySession;
+import com.itu.annotation.Role;
+
 import jakarta.servlet.http.HttpSession;
 import com.google.gson.Gson;
 
@@ -97,7 +100,7 @@ public class FrontController extends HttpServlet {
                     Object[] args = new Object[parameters.length];
 
                     Map<String, String> extracted = matchingRoute.extractParameters(fullUrl);
-
+                    Map<String, Object> sessionMap = null;
                     // Gérer les fichiers uploadés si la requête est multipart
                     File uploadedFile = null;
                     if (req.getContentType() != null && req.getContentType().startsWith("multipart/form-data")) {
@@ -157,10 +160,10 @@ public class FrontController extends HttpServlet {
                             // Si le paramètre est annoté @MySession -> copier les attributs de la
                             // HttpSession
                             if (parameters[i].isAnnotationPresent(MySession.class)) {
-                                Map<String, Object> sessionMap = new HashMap<>();
                                 HttpSession session = req.getSession(true);
                                 if (session != null) {
                                     System.out.println("DEBUG: Récupération des attributs de la session HTTP");
+                                    sessionMap = new HashMap<>();   
                                     java.util.Enumeration<String> names = session.getAttributeNames();
                                     while (names.hasMoreElements()) {
                                         String name = names.nextElement();
@@ -202,6 +205,37 @@ public class FrontController extends HttpServlet {
                             } else {
                                 args[i] = getDefaultValue(parameters[i].getType());
                             }
+                        }
+                    }
+                    if (method.isAnnotationPresent(Authorized.class)) {
+                        Authorized auth = method.getAnnotation(Authorized.class);
+                        Role[] rolesAllowed = auth.value();
+                        HttpSession session = req.getSession(false);
+                        String userRoleStr = (session != null) ? (String) session.getAttribute("role") : null;
+                        Role userRole = null;
+                        if (userRoleStr != null) {
+                            try {
+                                userRole = Role.valueOf(userRoleStr);
+                            } catch (IllegalArgumentException e) {
+                                userRole = null;
+                            }
+                        }
+                        boolean authorized = false;
+                        if (userRole != null) {
+                            for (Role role : rolesAllowed) {
+                                if (role == userRole) {
+                                    authorized = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!authorized) {
+                            resp.setContentType("text/html;charset=UTF-8");
+                            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            resp.getWriter().println("<h1>403 - Accès refusé</h1>");
+                            resp.getWriter().println("<p>Vous n'êtes pas autorisé à accéder à cette ressource.</p>");
+                            return;
                         }
                     }
 
